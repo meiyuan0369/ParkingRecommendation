@@ -157,6 +157,7 @@ async def get_recommendations(user_id: str):
     return recommendations
 
 
+# 捕获所有未被定义的路由
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 async def catch_all(full_path: str, request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
