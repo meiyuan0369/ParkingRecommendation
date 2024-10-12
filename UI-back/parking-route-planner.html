@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>驾车路线规划示例</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            display: flex;
+            height: 100%;
+            width: 100%;
+        }
+        #map {
+            flex: 3;
+            height: 100%;
+        }
+        #panel {
+            flex: 1;
+            position: relative;
+            width: 300px;
+            background-color: #fff;
+            border-left: 1px solid #ccc;
+            box-shadow: -3px 0 5px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            overflow-y: auto;
+        }
+        #panel h3 {
+            margin-top: 0;
+        }
+        #routeInfo {
+            margin-top: 10px;
+        }
+        #refresh {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 4px;
+        }
+        #refresh:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    <!-- 加载高德地图API -->
+    <script type="text/javascript">
+      window._AMapSecurityConfig = {
+        securityJsCode: "364a8bdf259f94626b1009a83bd0fd78",  // 确保这里填写的是正确的密钥
+      };
+    </script>
+    <script
+      type="text/javascript"
+      src="https://webapi.amap.com/maps?v=2.0&key=8ec0eef457659a258a5511296f18f310"
+    ></script>
+</head>
+
+<body>
+<div id="container">
+    <div id="map"></div>
+    <div id="panel">
+        <h3>驾车路线</h3>
+        <div id="routeInfo"></div>
+        <button id="refresh">刷新定位</button>
+    </div>
+</div>
+
+<script>
+    var map = new AMap.Map("map", {
+        zoom: 12,
+        resizeEnable: true
+    });
+
+    var userPosition; // 保存用户当前位置
+    var parkingLotPosition = [119.198453, 26.056812]; // 假设停车场的经纬度
+
+    // 初始化定位插件
+    AMap.plugin('AMap.Geolocation', function () {
+        var geolocation = new AMap.Geolocation({
+            enableHighAccuracy: true, // 使能高精度定位
+            timeout: 10000,
+            showButton: true,
+            buttonPosition: 'RB',
+            buttonOffset: new AMap.Pixel(10, 20),
+            zoomToAccuracy: true
+        });
+        map.addControl(geolocation);
+
+        geolocation.getCurrentPosition(function (status, result) {
+            if (status === 'complete') {
+                onLocationSuccess(result); // 定位成功回调
+            } else {
+                onLocationError(result); // 定位失败回调
+            }
+        });
+    });
+
+    // 定位成功后的回调函数
+    function onLocationSuccess(result) {
+        userPosition = [result.position.lng, result.position.lat]; // 用户的经纬度
+        console.log('当前位置:', userPosition);
+
+        // 规划路线
+        planRoute(parkingLotPosition);
+    }
+
+    // 定位失败的回调函数
+    function onLocationError(result) {
+        console.error('定位失败:', result.message);
+        alert('无法获取当前位置，导航功能不可用。');
+    }
+
+    // 规划驾车路线
+    function planRoute(parkingLotPosition) {
+        AMap.plugin('AMap.Driving', function () {
+            var driving = new AMap.Driving({
+                map: map,
+                panel: "panel" // 将详细路线信息展示在自定义面板上
+            });
+
+            // 驾车路线搜索
+            driving.search(userPosition, parkingLotPosition, function (status, result) {
+                if (status === 'complete' && result.routes && result.routes.length) {
+                    var route = result.routes[0]; // 获取第一条路线
+                    var distance = route.distance; // 获取路线总距离，单位：米
+                    var duration = route.time; // 获取预计行驶时间，单位：秒
+
+                    // 转换时间为分钟
+                    var timeInMinutes = Math.ceil(duration / 60);
+
+                    // 显示用户到目的地的距离和行驶时间
+                    document.getElementById('routeInfo').innerHTML =
+                        '<p>距离：' + (distance / 1000).toFixed(2) + ' 公里</p>' +
+                        '<p>预计行驶时间：' + timeInMinutes + ' 分钟</p>';
+                } else {
+                    alert('驾车路线规划失败，请检查目的地是否正确。');
+                }
+            });
+        });
+    }
+
+    // 刷新定位按钮
+    document.getElementById('refresh').addEventListener('click', function () {
+        map.plugin('AMap.Geolocation', function () {
+            var geolocation = new AMap.Geolocation({
+                enableHighAccuracy: true,
+                timeout: 10000,
+                showButton: true,
+                buttonPosition: 'RB',
+                buttonOffset: new AMap.Pixel(10, 20),
+                zoomToAccuracy: true
+            });
+            map.addControl(geolocation);
+
+            geolocation.getCurrentPosition(function (status, result) {
+                if (status === 'complete') {
+                    onLocationSuccess(result); // 更新用户位置
+                } else {
+                    onLocationError(result);
+                }
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

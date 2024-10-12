@@ -6,21 +6,13 @@ from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import os
 import dotenv
 
 # 导入自定义模块
 from db_utils.parking_graph_manager import ParkingGraphManager
 from db_utils.parking_graph_query import ParkingGraphQuery
-
-# # 令牌配置
-# SECRET_KEY = "your_secret_key"
-# ALGORITHM = "HS256"
-# ACCESS_TOKEN_EXPIRE_MINUTES = 30
-#
-# # 密码哈希配置
-# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 app = FastAPI()
 
@@ -43,6 +35,7 @@ AUTH = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
 
 parking_graph_manager = ParkingGraphManager(URI, AUTH[0], AUTH[1])
 parking_graph_query = ParkingGraphQuery(URI, AUTH[0], AUTH[1])
+
 
 # Pydantic 模型定义
 class UserCreate(BaseModel):
@@ -76,75 +69,10 @@ class ParkingRecommendationRequest(BaseModel):
     time: str
 
 
-# # 密码验证函数
-# def verify_password(plain_password, hashed_password):
-#     return pwd_context.verify(plain_password, hashed_password)
-#
-#
-# # 获取密码哈希值函数
-# def get_password_hash(password):
-#     return pwd_context.hash(password)
-#
-#
-# # 创建访问令牌函数
-# def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-#     to_encode = data.copy()
-#     if expires_delta:
-#         expire = datetime.utcnow() + expires_delta
-#     else:
-#         expire = datetime.utcnow() + timedelta(minutes=15)
-#     to_encode.update({"exp": expire})
-#     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-#     return encoded_jwt
-#
-#
-# # 获取当前用户函数
-# async def get_current_user(token: str = Depends(oauth2_scheme)):
-#     credentials_exception = HTTPException(
-#         status_code=401,
-#         detail="无法验证凭据",
-#         headers={"WWW-Authenticate": "Bearer"},
-#     )
-#     try:
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         username: str = payload.get("sub")
-#         if username is None:
-#             raise credentials_exception
-#         user_node, message = parking_graph_query.query_user_node(username)
-#         if user_node is None:
-#             raise credentials_exception
-#         return user_node
-#     except JWTError:
-#         raise credentials_exception
+# 挂载静态文件目录，指向 templates 目录下的 assets 文件夹
+app.mount("/assets", StaticFiles(directory="templates/assets"), name="assets")
 
-
-# # 注册新用户
-# @app.post("/register")
-# async def register(user: UserCreate):
-#     existing_user, message = parking_graph_query.query_user_node(user.username)
-#     if existing_user:
-#         raise HTTPException(status_code=400, detail="用户名已被注册")
-#     hashed_password = get_password_hash(user.password)
-#     user_data = {
-#         "id": user.username,
-#         "hashed_password": hashed_password
-#     }
-#     parking_graph_manager.create_user_node(user_data)
-#     return {"msg": "用户注册成功"}
-#
-#
-# # 用户登录
-# @app.post("/login")
-# async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-#     user_node, message = parking_graph_query.query_user_node(form_data.username)
-#     if not user_node or not verify_password(form_data.password, user_node["hashed_password"]):
-#         raise HTTPException(status_code=401, detail="无效的凭据")
-#     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-#     access_token = create_access_token(data={"sub": user_node["id"]}, expires_delta=access_token_expires)
-#     return {"access_token": access_token, "token_type": "bearer"}
-
-
-# 获取用户偏好信息
+# 初始化模板引擎，模板文件位于 templates 目录
 templates = Jinja2Templates(directory="templates")
 
 
@@ -154,6 +82,12 @@ async def read_index(request: Request):
     处理根路径请求，返回 index.html 作为响应
     """
     return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/recommendation_results", response_class=HTMLResponse)
+async def recommendation_results(request: Request):
+    return templates.TemplateResponse("recommendation_results.html", {"request": request})
+
 
 @app.get("/user/{user_id}")
 async def get_user_preferences(user_id: int):
@@ -223,7 +157,12 @@ async def get_recommendations(user_id: str):
     return recommendations
 
 
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def catch_all(full_path: str, request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=5000)
+    uvicorn.run(app, host="127.0.0.1", port=3000)
