@@ -82,7 +82,7 @@ class ParkingGraphQuery:
                 WITH
                     u1, u2,
                     COUNT(p) AS parking_common,
-                    SUM(r1.grading * r2.grading)/(SQRT(SUM(r1.grading^2)) * SQRT(SUM(r2.grading^2))) AS sim
+                    SUM(r1.grade * r2.grade)/(SQRT(SUM(r1.grade^2)) * SQRT(SUM(r2.grade^2))) AS sim
                 WHERE parking_common >= {parking_common} AND sim > {threshold_sim}
                 MERGE (u1)-[s:SIMILARITY]-(u2)
                 SET s.sim = sim
@@ -108,7 +108,7 @@ class ParkingGraphQuery:
                     p.parking_type AS parking_type,
                     p.longitude AS longitude,
                     p.latitude AS latitude,
-                    SUM(r.grading * s.sim)/SUM(s.sim) AS grade,
+                    SUM(r.grade * s.sim)/SUM(s.sim) AS grade,
                     COUNT(u2) AS num
                 WHERE num >= {users_common}
                 RETURN id, driving_distance, walking_distance, found_time, parking_space_size, parking_difficulty, near_elevator, has_surveillance, fee, parking_type, longitude, latitude, grade, num

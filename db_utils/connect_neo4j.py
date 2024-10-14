@@ -29,14 +29,17 @@ def load_parking_spots(file_path):
             # 转换每条记录为字典
             parking_spots.append({
                 'id': int(row['ID']),
-                'drive_distance': float(row['Driving Distance (meters)']),
-                'walk_distance': float(row['Walking Distance (meters)']),
-                'search_time': float(row['Time to Find Parking (minutes)']),
-                'space_size': int(row['Parking Space Size (0-10)']),
-                'difficulty': row['Parking Difficulty'],
+                'driving_distance': float(row['Driving Distance (meters)']),
+                'walking_distance': float(row['Walking Distance (meters)']),
+                'found_time': float(row['Time to Find Parking (minutes)']),
+                'parking_space_size': int(row['Parking Space Size (0-10)']),
+                'parking_difficulty': row['Parking Difficulty'],
                 'near_elevator': row['Near Elevator'] == 'Yes',
                 'has_surveillance': row['Has Surveillance'] == 'Yes',
-                'cost_per_hour': float(row['Parking Fee (CNY/hour)'])
+                'fee': float(row['Parking Fee (CNY/hour)']),
+                'parking_type': row['Parking Type'],  # 新增字段
+                'longitude': float(row['Longitude']),  # 新增字段
+                'latitude': float(row['Latitude'])  # 新增字段
             })
     return parking_spots
 
@@ -53,7 +56,7 @@ def load_ratings(file_path):
             ratings.append({
                 'parking_spot_id': int(row['停车位ID']),
                 'user_id': int(row['用户ID']),
-                'rating': float(row['评分'])
+                'grade': float(row['评分'])
             })
     return ratings
 
@@ -67,14 +70,17 @@ def insert_parking_spots(tx, parking_spots):
     for spot in tqdm(parking_spots, desc="Inserting Parking Spots", unit="spot"):  # 使用 tqdm 显示进度条
         tx.run("""
             MERGE (p:ParkingSpot {id: $id})
-            SET p.drive_distance = $drive_distance,
-                p.walk_distance = $walk_distance,
-                p.search_time = $search_time,
-                p.space_size = $space_size,
-                p.difficulty = $difficulty,
+            SET p.driving_distance = $driving_distance,
+                p.walking_distance = $walking_distance,
+                p.found_time = $found_time,
+                p.parking_space_size = $parking_space_size,
+                p.parking_difficulty = $parking_difficulty,
                 p.near_elevator = $near_elevator,
                 p.has_surveillance = $has_surveillance,
-                p.cost_per_hour = $cost_per_hour
+                p.fee = $fee,
+                p.parking_type = $parking_type,
+                p.longitude = $longitude,
+                p.latitude = $latitude
         """, **spot)
 
 
@@ -89,7 +95,7 @@ def insert_ratings(tx, ratings):
             MERGE (u:User {id: $user_id})
             MERGE (p:ParkingSpot {id: $parking_spot_id})
             MERGE (u)-[r:RATED]->(p)
-            SET r.grading = $rating
+            SET r.grade = $grade
         """, **rating)
 
 
