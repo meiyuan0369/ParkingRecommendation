@@ -101,6 +101,47 @@ def get_parking_type(parking_name, parking_type_code):
         return "其他"
 
 
+def generate_user_preferences(num_users):
+    """
+    为每个用户生成一个偏好权重向量。
+
+    参数:
+    num_users (int): 用户数量
+
+    返回:
+    preferences (dict): 用户偏好字典，每个用户对应一个偏好向量
+    """
+    preferences = {}
+    for user_id in range(1, num_users + 1):
+        preferences[user_id] = {
+            'parking_fee_weight': np.random.uniform(0.1, 1.0),
+            'driving_distance_weight': np.random.uniform(0.1, 1.0),
+            'near_elevator_weight': np.random.uniform(0.1, 1.0),
+            'has_surveillance_weight': np.random.uniform(0.1, 1.0)
+        }
+    return preferences
+
+
+def calculate_adjusted_rating(base_rating, parking_spot, user_preferences):
+    """
+    根据用户偏好和停车场属性调整基础评分。
+
+    参数:
+    base_rating (float): 停车位的基础评分
+    parking_spot (Series): 停车场的属性
+    user_preferences (dict): 用户的偏好向量
+
+    返回:
+    float: 调整后的评分
+    """
+    adjusted_rating = base_rating
+    adjusted_rating -= user_preferences['parking_fee_weight'] * (parking_spot['Parking Fee (CNY/hour)'] / 10)
+    adjusted_rating -= user_preferences['driving_distance_weight'] * (parking_spot['Driving Distance (meters)'] / 1000)
+    adjusted_rating += user_preferences['near_elevator_weight'] if parking_spot['Near Elevator'] == '是' else 0
+    adjusted_rating += user_preferences['has_surveillance_weight'] if parking_spot['Has Surveillance'] == '是' else 0
+    return np.clip(adjusted_rating, 1, 5)
+
+
 def generate_parking_data(num_users, num_parking_spots, min_ratings_per_user, max_ratings_per_user, parking_lots,
                           seed=42):
     """
@@ -218,8 +259,11 @@ def generate_parking_data(num_users, num_parking_spots, min_ratings_per_user, ma
         parking_data['Longitude'].append(longitude)
         parking_data['Latitude'].append(latitude)
 
-        # 将数据转换为 DataFrame
+    # 将数据转换为 DataFrame
     parking_spots_df = pd.DataFrame(parking_data)
+
+    # 生成用户偏好数据
+    user_preferences = generate_user_preferences(num_users)
 
     # 生成用户评分数据
     ratings = []
@@ -236,13 +280,45 @@ def generate_parking_data(num_users, num_parking_spots, min_ratings_per_user, ma
         float: 基础评分
         """
         base_rating = 5.0
-        base_rating += 0.5 if parking_spot['Parking Space Size (0-10)'] > 8 else 0
-        base_rating += 0.2 if parking_spot['Near Elevator'] == '是' else 0
-        base_rating += 0.2 if parking_spot['Has Surveillance'] == '是' else 0
-        base_rating += 0.5 if parking_spot['Parking Difficulty'] == '容易' else 0
-        base_rating -= 0.5 if parking_spot['Driving Distance (meters)'] > 900 else 0
-        base_rating -= 0.5 if parking_spot['Walking Distance (meters)'] > 280 else 0
-        base_rating -= 0.5 if parking_spot['Parking Fee (CNY/hour)'] > 7 else 0
+
+        # 停车位大小
+        if parking_spot['Parking Space Size (0-10)'] > 8:
+            base_rating += 0.5
+        elif parking_spot['Parking Space Size (0-10)'] < 5:
+            base_rating -= 0.5
+
+        # 电梯
+        if parking_spot['Near Elevator'] == '是':
+            base_rating += 0.3
+
+        # 监控
+        if parking_spot['Has Surveillance'] == '是':
+            base_rating += 0.2
+
+        # 停车难度
+        if parking_spot['Parking Difficulty'] == '容易':
+            base_rating += 0.5
+        elif parking_spot['Parking Difficulty'] == '困难':
+            base_rating -= 0.5
+
+        # 驾驶距离
+        if parking_spot['Driving Distance (meters)'] > 1000:
+            base_rating -= 0.7
+        elif parking_spot['Driving Distance (meters)'] < 500:
+            base_rating += 0.3
+
+        # 步行距离
+        if parking_spot['Walking Distance (meters)'] > 300:
+            base_rating -= 0.5
+        elif parking_spot['Walking Distance (meters)'] < 100:
+            base_rating += 0.2
+
+        # 停车费用
+        if parking_spot['Parking Fee (CNY/hour)'] > 10:
+            base_rating -= 0.5
+        elif parking_spot['Parking Fee (CNY/hour)'] < 5:
+            base_rating += 0.3
+
         return base_rating
 
     # 为每个用户生成评分数据
@@ -252,9 +328,12 @@ def generate_parking_data(num_users, num_parking_spots, min_ratings_per_user, ma
         for spot_id in rated_spots:
             spot = parking_spots_df.loc[parking_spots_df['ID'] == spot_id].iloc[0]
             base_rating = calculate_base_rating(spot)
-            # 使用正态分布随机扰动生成评分，并截取到1到5的范围
-            rating = np.clip(base_rating + np.random.normal(0, 1.5), 1, 5)
-            ratings.append([spot_id, user_id, round(rating, 1)])
+
+            # 根据用户偏好调整评分
+            adjusted_rating = calculate_adjusted_rating(base_rating, spot, user_preferences[user_id])
+
+            # 将调整后的评分四舍五入到最近的小数点后一位
+            ratings.append([spot_id, user_id, round(adjusted_rating, 1)])
 
     # 将用户评分数据转换为 DataFrame
     ratings_df = pd.DataFrame(ratings, columns=['停车位ID', '用户ID', '评分'])
@@ -266,24 +345,25 @@ def generate_parking_data(num_users, num_parking_spots, min_ratings_per_user, ma
     return parking_spots_df, ratings_df
 
 
-# 参数设置
-num_users = 100
-num_parking_spots = 200
-min_ratings_per_user = 20
-max_ratings_per_user = 40
+if __name__ == '__main__':
+    # 参数设置
+    num_users = 100
+    num_parking_spots = 200
+    min_ratings_per_user = 20
+    max_ratings_per_user = 40
 
-# 使用高德地图API获取停车场数据
-city = '福州'
-api_key = 'da2c7cf734d2af3112d39ad74a58e284'  # 需要替换为你自己的高德地图API Key
-parking_lots = fetch_parking_lots(city, api_key)
+    # 使用高德地图API获取停车场数据
+    city = '福州'
+    api_key = 'your_amap_api_key'  # 替换为你自己的高德地图API Key
+    parking_lots = fetch_parking_lots(city, api_key)
 
-# 生成带有实际坐标的停车位数据
-parking_spots, ratings_df = generate_parking_data(num_users, num_parking_spots, min_ratings_per_user,
-                                                  max_ratings_per_user, parking_lots)
+    # 生成带有实际坐标的停车位数据
+    parking_spots, ratings_df = generate_parking_data(num_users, num_parking_spots, min_ratings_per_user,
+                                                      max_ratings_per_user, parking_lots)
 
-# 显示生成的数据
-print("停车位信息:")
-print(parking_spots.head())
+    # 显示生成的数据
+    print("停车位信息:")
+    print(parking_spots.head())
 
-print("\n用户评分:")
-print(ratings_df.head())
+    print("\n用户评分:")
+    print(ratings_df.head())
