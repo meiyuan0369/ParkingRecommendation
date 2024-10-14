@@ -89,6 +89,7 @@ async def recommendation_results(request: Request):
     return templates.TemplateResponse("recommendation_results.html", {"request": request})
 
 
+# 获取用户偏好
 @app.get("/user/{user_id}")
 async def get_user_preferences(user_id: int):
     user_node, message = parking_graph_query.query_user_node(user_id)
