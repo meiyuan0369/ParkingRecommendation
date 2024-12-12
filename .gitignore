@@ -2,4 +2,4 @@
 .idea/
 
 # Ignore Python bytecode compilation files
-__pycache__/
+data_utils/__pycache__/

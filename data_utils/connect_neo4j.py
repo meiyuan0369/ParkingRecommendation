@@ -46,7 +46,7 @@ def load_parking_spots(file_path):
 
 def load_ratings(file_path):
     """
-    从 original_ratings.csv 文件中加载评分数据。
+    从 original_ratings_old.csv 文件中加载评分数据。
     返回评分记录的列表，每条记录为字典格式。
     """
     ratings = []
@@ -133,7 +133,7 @@ def insert_data_into_neo4j(parking_spots_file, ratings_file):
 if __name__ == "__main__":
     # CSV 文件路径
     parking_spots_file = "../data/parking_spots_with_coords.csv"
-    ratings_file = "../data/original_ratings.csv"
+    ratings_file = "../data/original_ratings_old.csv"
 
     # 插入数据到 Neo4j
     insert_data_into_neo4j(parking_spots_file, ratings_file)
